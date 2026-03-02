@@ -1,4 +1,5 @@
 import os
+# --- MANDATORY: Must be before tensorflow import ---
 os.environ["TF_USE_LEGACY_KERAS"] = "1" 
 
 import streamlit as st
@@ -7,17 +8,12 @@ import numpy as np
 import tensorflow as tf
 import time
 
-# --- THE DEFINITIVE FIX ---
+# --- 1. Load the AI Model (Clean Load to prevent RecursionError) ---
 @st.cache_resource
 def load_teachable_machine_model():
-    # We use the generic 'tf.keras.layers.TFSMLayer' style loading 
-    # if the standard load_model keeps failing.
-    try:
-        model = tf.keras.models.load_model("keras_model.h5", compile=False, safe_mode=False)
-    except Exception:
-        # Fallback for version-mismatched H5 files
-        st.warning("Running in Compatibility Mode...")
-        model = tf.keras.models.load_model("keras_model.h5", compile=False)
+    # Direct load without the complex fallbacks. 
+    # This keeps the backend architecture reliable and crash-free.
+    model = tf.keras.models.load_model("keras_model.h5", compile=False)
         
     with open("labels.txt", "r") as f:
         class_names = f.readlines()
@@ -59,13 +55,11 @@ if st.session_state.camera_active:
     st.subheader("Live Deep Learning Dispatch Feed")
     frame_placeholder = st.empty()
     
-    # Use index 0 for local webcam; Streamlit Cloud requires a different approach for 
-    # production, but this works for your local/demo simulation.
+    # Use index 0 for local webcam
     cap = cv2.VideoCapture(0)
     frames_detected = 0
 
     # CONFIGURATION: Minimum time required for a realistic order (Seconds)
-    # Set to 30 for demo purposes to show the anti-fraud logic
     MIN_PREP_THRESHOLD = 30 
 
     while cap.isOpened():
@@ -89,7 +83,6 @@ if st.session_state.camera_active:
         elapsed_seconds = int(time.time() - st.session_state.start_time)
 
         # --- Trigger Logic with Sanity Check ---
-        # Checks for "parcel" in your label name (case insensitive)
         if "parcel" in class_name.lower() and confidence_score > 0.85:
             
             # IF DETECTED TOO EARLY (Potential Fraud or False Positive)
@@ -104,7 +97,7 @@ if st.session_state.camera_active:
                 cv2.putText(frame, f"PARCEL DETECTED: {confidence_score*100:.0f}%", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
                 
                 frames_detected += 1
-                if frames_detected >= 3: # Require 3 consecutive frames to confirm
+                if frames_detected >= 3: 
                     st.session_state.status = "Ready"
                     st.session_state.kpt = f"{elapsed_seconds} seconds"
                     st.session_state.camera_active = False
@@ -115,7 +108,7 @@ if st.session_state.camera_active:
             cv2.putText(frame, f"Scanning Counter... (Elapsed: {elapsed_seconds}s)", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
             frames_detected = 0
 
-        # Display the frame in the Streamlit app
+        # Display the frame
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         frame_placeholder.image(frame_rgb, channels="RGB")
 
