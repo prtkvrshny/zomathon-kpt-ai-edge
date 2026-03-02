@@ -1,25 +1,24 @@
 import os
-# --- MANDATORY FIX: Forces compatibility for Teachable Machine models ---
+# Forces legacy Keras environment for h5 compatibility
 os.environ["TF_USE_LEGACY_KERAS"] = "1" 
 
 import streamlit as st
 import cv2
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.models import load_model
 import time
 
-# --- 1. Load the AI Model (Cached for Speed) ---
+# --- Load the AI Model ---
 @st.cache_resource
 def load_teachable_machine_model():
-    # Adding 'safe_mode=False' is critical for loading older .h5 files
-    model = load_model("keras_model.h5", compile=False, safe_mode=False)
-    
+    # Adding safe_mode=False is critical for loading older .h5 files on newer TF versions
+    model = tf.keras.models.load_model("keras_model.h5", compile=False, safe_mode=False)
     with open("labels.txt", "r") as f:
         class_names = f.readlines()
     return model, class_names
 
 model, class_names = load_teachable_machine_model()
+
 # --- 2. Session State Initialization ---
 if 'status' not in st.session_state:
     st.session_state.status = "Preparing"
