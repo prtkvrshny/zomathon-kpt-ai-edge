@@ -1,5 +1,5 @@
 import os
-# --- THE MAGIC FIX: Forces compatibility with Teachable Machine models ---
+# --- MANDATORY FIX: Forces compatibility for Teachable Machine models ---
 os.environ["TF_USE_LEGACY_KERAS"] = "1" 
 
 import streamlit as st
@@ -12,14 +12,14 @@ import time
 # --- 1. Load the AI Model (Cached for Speed) ---
 @st.cache_resource
 def load_teachable_machine_model():
-    # Load with compile=False to avoid version mismatches in the optimizer
-    model = load_model("keras_model.h5", compile=False)
+    # Adding 'safe_mode=False' is critical for loading older .h5 files
+    model = load_model("keras_model.h5", compile=False, safe_mode=False)
+    
     with open("labels.txt", "r") as f:
         class_names = f.readlines()
     return model, class_names
 
 model, class_names = load_teachable_machine_model()
-
 # --- 2. Session State Initialization ---
 if 'status' not in st.session_state:
     st.session_state.status = "Preparing"
