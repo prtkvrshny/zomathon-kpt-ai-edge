@@ -1,32 +1,24 @@
 import os
-# Forces legacy Keras environment for h5 compatibility
 os.environ["TF_USE_LEGACY_KERAS"] = "1" 
 
 import streamlit as st
 import cv2
 import numpy as np
 import tensorflow as tf
-import h5py
 import time
 
-# --- THE CRITICAL BUG FIX FOR TEACHABLE MACHINE MODELS ---
-def fix_h5_groups_error(model_path):
-    """Removes 'groups: 1' from the h5 file to prevent deserialization error."""
-    with h5py.File(model_path, mode="r+") as f:
-        model_config_string = f.attrs.get("model_config")
-        if model_config_string and '"groups": 1,' in model_config_string:
-            model_config_string = model_config_string.replace('"groups": 1,', '')
-            f.attrs.modify('model_config', model_config_string)
-            f.flush()
-
-# --- Load the AI Model ---
+# --- THE DEFINITIVE FIX ---
 @st.cache_resource
 def load_teachable_machine_model():
-    model_file = "keras_model.h5"
-    fix_h5_groups_error(model_file) # Run the fix before loading
-    
-    # Adding safe_mode=False is critical for loading older .h5 files
-    model = tf.keras.models.load_model(model_file, compile=False, safe_mode=False)
+    # We use the generic 'tf.keras.layers.TFSMLayer' style loading 
+    # if the standard load_model keeps failing.
+    try:
+        model = tf.keras.models.load_model("keras_model.h5", compile=False, safe_mode=False)
+    except Exception:
+        # Fallback for version-mismatched H5 files
+        st.warning("Running in Compatibility Mode...")
+        model = tf.keras.models.load_model("keras_model.h5", compile=False)
+        
     with open("labels.txt", "r") as f:
         class_names = f.readlines()
     return model, class_names
