@@ -1,25 +1,18 @@
-import os
-# --- MANDATORY: Must be before tensorflow import ---
-os.environ["TF_USE_LEGACY_KERAS"] = "1" 
-
 import streamlit as st
 import cv2
 import numpy as np
-import tensorflow as tf
+from tensorflow.keras.models import load_model
 import time
 
-# --- 1. Load the AI Model (Clean Load to prevent RecursionError) ---
+# --- 1. Load the AI Model ---
 @st.cache_resource
-def load_teachable_machine_model():
-    # Direct load without the complex fallbacks. 
-    # This keeps the backend architecture reliable and crash-free.
-    model = tf.keras.models.load_model("keras_model.h5", compile=False)
+def load_zomato_model():
+    # Clean, direct load without environment hacks
+    model = load_model("keras_model.h5", compile=False)
         
     with open("labels.txt", "r") as f:
-        class_names = f.readlines()
+        class_names = [line.strip() for line in f.readlines()]
     return model, class_names
-
-model, class_names = load_teachable_machine_model()
 
 # --- 2. Session State Initialization ---
 if 'status' not in st.session_state:
@@ -36,6 +29,8 @@ st.set_page_config(page_title="Zomato Smart Kitchen", layout="wide")
 st.title("🔴 Zomato Partner: Zero-Touch KPT Dashboard")
 st.markdown("Automated prep-time tracking powered by **Deep Learning & Edge Computer Vision.**")
 st.divider()
+
+model, class_names = load_zomato_model()
 
 # --- 4. Dashboard Metrics ---
 col1, col2, col3 = st.columns(3)
@@ -55,17 +50,14 @@ if st.session_state.camera_active:
     st.subheader("Live Deep Learning Dispatch Feed")
     frame_placeholder = st.empty()
     
-    # Use index 0 for local webcam
     cap = cv2.VideoCapture(0)
     frames_detected = 0
-
-    # CONFIGURATION: Minimum time required for a realistic order (Seconds)
     MIN_PREP_THRESHOLD = 30 
 
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
-            st.error("Failed to access webcam. Ensure no other app is using it.")
+            st.error("Failed to access webcam.")
             break
 
         # --- Deep Learning Pre-processing ---
@@ -79,19 +71,14 @@ if st.session_state.camera_active:
         class_name = class_names[index].strip()
         confidence_score = prediction[0][index]
 
-        # Calculate current elapsed time
         elapsed_seconds = int(time.time() - st.session_state.start_time)
 
-        # --- Trigger Logic with Sanity Check ---
+        # --- Trigger Logic ---
         if "parcel" in class_name.lower() and confidence_score > 0.85:
-            
-            # IF DETECTED TOO EARLY (Potential Fraud or False Positive)
             if elapsed_seconds < MIN_PREP_THRESHOLD:
                 cv2.rectangle(frame, (10, 10), (frame.shape[1]-10, frame.shape[0]-10), (0, 0, 255), 4)
                 cv2.putText(frame, f"WAIT: Preparing... ({elapsed_seconds}s)", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
                 frames_detected = 0
-            
-            # VALID COMPLETION
             else:
                 cv2.rectangle(frame, (10, 10), (frame.shape[1]-10, frame.shape[0]-10), (0, 255, 0), 4)
                 cv2.putText(frame, f"PARCEL DETECTED: {confidence_score*100:.0f}%", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
@@ -104,21 +91,19 @@ if st.session_state.camera_active:
                     cap.release()
                     st.rerun()
         else:
-            # Normal Scanning State
             cv2.putText(frame, f"Scanning Counter... (Elapsed: {elapsed_seconds}s)", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
             frames_detected = 0
 
-        # Display the frame
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         frame_placeholder.image(frame_rgb, channels="RGB")
 
     cap.release()
 
-# --- 6. Reset / New Order Button ---
+# --- 6. Reset Button ---
 if not st.session_state.camera_active:
     st.success(f"Order Completed in {st.session_state.kpt}! Data synced to Zomato Logistics.")
     st.divider()
-    if st.button("🔄 Start Next Order (Demo Reset)"):
+    if st.button("🔄 Start Next Order"):
         st.session_state.status = "Preparing"
         st.session_state.kpt = "--"
         st.session_state.camera_active = True
